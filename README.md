@@ -1,6 +1,52 @@
-# Raspberry Pi 5 Fan Control
+# Raspberry Pi 5 Fan Control <!-- omit in toc -->
 
 Advanced temperature-based fan control daemon for Raspberry Pi 5, managing both CPU and NVMe fans with intelligent hysteresis to prevent oscillation.
+
+## Table of Contents <!-- omit in toc -->
+
+- [Features](#features)
+- [Hardware Requirements](#hardware-requirements)
+- [Prerequisites](#prerequisites)
+  - [PWM Configuration](#pwm-configuration)
+- [Quick Install from GitHub](#quick-install-from-github)
+  - [Install Specific Version](#install-specific-version)
+  - [Update Existing Installation](#update-existing-installation)
+- [Alternative Installation Methods](#alternative-installation-methods)
+  - [Clone and Install](#clone-and-install)
+  - [Manual Installation](#manual-installation)
+- [Post-Installation](#post-installation)
+  - [Enable and Start Service](#enable-and-start-service)
+  - [Monitor Operation](#monitor-operation)
+  - [Startup Verification Test](#startup-verification-test)
+- [Configuration](#configuration)
+  - [Default Temperature Thresholds](#default-temperature-thresholds)
+  - [Adjusting Thresholds](#adjusting-thresholds)
+  - [Debug Mode](#debug-mode)
+  - [Configuration Profiles](#configuration-profiles)
+- [Log Format](#log-format)
+- [Troubleshooting](#troubleshooting)
+  - [Service won't start](#service-wont-start)
+  - [Sensor not found](#sensor-not-found)
+  - [Permission denied](#permission-denied)
+  - [Fans not responding](#fans-not-responding)
+  - [High CPU usage](#high-cpu-usage)
+  - [Logs growing too large](#logs-growing-too-large)
+- [Uninstallation](#uninstallation)
+- [How It Works](#how-it-works)
+  - [Hysteresis Algorithm](#hysteresis-algorithm)
+  - [Temperature Sensor Discovery](#temperature-sensor-discovery)
+  - [Emergency Mode](#emergency-mode)
+  - [Graceful Shutdown](#graceful-shutdown)
+- [Architecture](#architecture)
+- [File Locations](#file-locations)
+- [Testing](#testing)
+- [Performance](#performance)
+- [Safety Features](#safety-features)
+- [License](#license)
+- [Contributing](#contributing)
+- [Acknowledgments](#acknowledgments)
+- [AI](#ai)
+
 
 ## Features
 
@@ -161,8 +207,33 @@ cat /sys/class/thermal/thermal_zone0/temp
 cat /sys/class/thermal/cooling_device0/cur_state
 
 # NVMe fan duty cycle
-cat /sys/class/pwm/pwmchip1/pwm0/duty_cycle
+cat /sys/class/pwm/pwmchip0/pwm2/duty_cycle
 ```
+
+### Startup Verification Test
+
+When the fan-control service starts (including on system boot), it runs a 30-second verification test to confirm both fans are operational.
+
+**What happens:**
+- Both fans spin at high speed for 30 seconds
+- CPU fan runs at state 3 (high)
+- NVMe fan runs at 80% duty cycle
+
+**Purpose:**
+- Provides immediate visual and audible confirmation that the fan control system is working
+- Verifies both fans respond to control commands before entering temperature-based operation
+- Helps identify hardware issues early
+
+**Expected behavior:**
+```bash
+# After service start, you'll see in the logs:
+Running 30-second startup test...
+Fans will spin at high speed to verify system is working
+Startup test running... (30 seconds)
+Startup test complete - switching to temperature-based control
+```
+
+This is normal behavior and not an error. After 30 seconds, the service automatically transitions to normal temperature-based fan control.
 
 ## Configuration
 
@@ -222,6 +293,49 @@ After editing, restart the service:
 sudo systemctl restart fan-control
 ```
 
+### Debug Mode
+
+For troubleshooting sensor issues, hysteresis behavior, or general operation, you can enable debug mode for verbose logging.
+
+**Enable debug mode:**
+
+```bash
+sudo nano /etc/fan-control/fan-control.conf
+```
+
+Set the debug mode parameter:
+```bash
+DEBUG_MODE=1
+```
+
+Restart the service:
+```bash
+sudo systemctl restart fan-control
+```
+
+**View debug output:**
+
+Debug messages are written to both the log file and systemd journal:
+
+```bash
+# Watch systemd journal (includes debug output to stderr)
+journalctl -u fan-control -f
+
+# Or view the log file
+tail -f /var/log/fan-control/fan-control-$(date +%Y-%m-%d).log
+```
+
+**What debug mode shows:**
+- Detailed sensor read operations
+- Hysteresis calculations and state transitions
+- Hardware interface operations
+- Timing information
+- Additional error context
+
+**Disable debug mode:**
+
+Set `DEBUG_MODE=0` in the configuration file and restart the service. Debug mode may increase log file size, so disable it once troubleshooting is complete.
+
 ### Configuration Profiles
 
 **Conservative (Quiet, allows higher temps):**
@@ -260,6 +374,25 @@ YYYY-MM-DD HH:MM:SS | CPU: XXC (State: X) | NVMe: XXC (Duty: XXXXX/40000, XX%) |
 2025-12-26 14:35:10 | CPU:  72C (State: 3) | NVMe:  64C (Duty: 16000/40000,  40%) | OK
 ```
 
+**Log Rotation:**
+
+The service includes built-in daily log rotation - no external logrotate configuration needed.
+
+- **New log file created daily:** At midnight (based on system date), the daemon automatically starts writing to a new log file with the current date
+- **Automatic cleanup:** Logs older than `LOG_RETENTION_DAYS` (default: 5 days) are automatically deleted
+- **No service interruption:** Rotation happens seamlessly during normal operation
+- **Adjust retention:** Edit `/etc/fan-control/fan-control.conf` and set `LOG_RETENTION_DAYS` to your preferred value
+
+Example log directory after several days:
+```bash
+/var/log/fan-control/
+├── fan-control-2025-12-22.log  # Will be deleted after 5 days
+├── fan-control-2025-12-23.log
+├── fan-control-2025-12-24.log
+├── fan-control-2025-12-25.log
+└── fan-control-2025-12-26.log  # Current day
+```
+
 **Status Messages:**
 - `OK`: Normal operation
 - `SENSOR_ERROR`: Temporary sensor read failure
@@ -272,7 +405,7 @@ YYYY-MM-DD HH:MM:SS | CPU: XXC (State: X) | NVMe: XXC (Duty: XXXXX/40000, XX%) |
 
 **Check hardware:**
 ```bash
-ls -la /sys/class/pwm/pwmchip1
+ls -la /sys/class/pwm/pwmchip0
 ls -la /sys/class/thermal/cooling_device0
 ```
 
@@ -329,12 +462,12 @@ echo enabled | sudo tee /sys/class/thermal/thermal_zone0/mode
 
 **Test NVMe fan manually:**
 ```bash
-cd /sys/class/pwm/pwmchip1
+cd /sys/class/pwm/pwmchip0
 
 # Export if needed
-echo 0 | sudo tee export
+echo 2 | sudo tee export
 
-cd pwm0
+cd pwm2
 echo 0     | sudo tee enable
 echo 40000 | sudo tee period
 echo 8000  | sudo tee duty_cycle  # 20%
@@ -523,8 +656,8 @@ sudo systemctl status fan-control  # Should be running if enabled
 
 ## Performance
 
-- **CPU Usage**: < 0.5% (typical)
-- **Memory**: ~10-20 MB
+- **CPU Usage**: < 0.5% (typical, systemd limit: 5% CPU quota)
+- **Memory**: ~10-20 MB typical usage (systemd MemoryMax=50M enforced limit)
 - **Disk I/O**: Minimal (log writes every 5 seconds)
 - **Response Time**: 5 seconds (configurable via LOOP_INTERVAL)
 
@@ -532,13 +665,23 @@ sudo systemctl status fan-control  # Should be running if enabled
 
 1. **Permission Checking**: Verifies write access before starting
 2. **Hardware Verification**: Ensures all required sysfs paths exist
-3. **Sensor Failure Handling**: Uses last known temperature for up to 3 failures
+3. **Sensor Failure Handling**: Multi-level fallback system protects against sensor failures
+   - **Level 1-2 (first 2 failures):** Uses last known good temperature and continues monitoring
+   - **Level 3+ (3 consecutive failures):** Enters emergency mode with maximum cooling
+   - **Emergency actions:** CPU fan to state 4, NVMe to 80%, re-enables automatic thermal control as backup
+   - **Recovery:** Service continues monitoring and exits emergency mode when sensors recover
+   - **Purpose:** Ensures system never runs without cooling protection, even during sensor malfunction
 4. **Emergency Cooling**: Activates max fans on critical conditions
-5. **Thermal Runaway Protection**: Monitors for dangerous temperatures
-6. **Graceful Cleanup**: Always restores automatic thermal control
-7. **Safe Defaults**: Fans set to medium speed (not off) on service stop
-8. **Resource Limits**: Systemd limits prevent runaway resource usage
-9. **Restart Policy**: Auto-restart on failures, with backoff
+5. **Thermal Runaway Protection**: Monitors for dangerous temperatures (CPU >90°C, NVMe >85°C)
+6. **Graceful Cleanup**: Always restores automatic thermal control on service stop
+7. **Safe Defaults**: Fans set to medium speed (not off) on service stop to maintain cooling
+8. **Resource Limits**: Systemd limits prevent runaway resource usage (5% CPU, 50MB memory max)
+9. **Restart Policy**: Auto-restart on failures, with backoff (max 5 restarts per 200 seconds)
+10. **Security Hardening**: Systemd isolation prevents service from modifying system files
+    - **ProtectSystem=strict:** Read-only access to /usr and /boot
+    - **ReadWritePaths whitelist:** Only /var/log/fan-control, /sys/class/pwm, and /sys/class/thermal are writable
+    - **PrivateTmp:** Isolated temporary directory prevents information leakage
+    - **NoNewPrivileges:** Prevents privilege escalation attacks
 
 ## License
 
@@ -557,3 +700,7 @@ Contributions welcome! Areas for improvement:
 ## Acknowledgments
 
 Built for the Raspberry Pi 5 community to provide advanced fan control with reliability and safety in mind.
+
+## AI
+
+This project was developed with assistance from AI tools (Claude by Anthropic), which helped with code refinement, documentation, testing strategies, and technical implementation. All code has been reviewed, tested, and validated on Raspberry Pi 5 hardware.

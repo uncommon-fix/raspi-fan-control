@@ -87,6 +87,25 @@ init_nvme_pwm || exit 1
 init_cpu_fan || exit 1
 
 # ============================================================================
+# STARTUP TEST - Spin fans to verify operation
+# ============================================================================
+
+log_info "Running 30-second startup test..."
+log_info "Fans will spin at high speed to verify system is working"
+
+# Set CPU fan to high speed (state 3)
+set_cpu_fan_state 3 || log_error "Failed to set CPU fan for startup test"
+
+# Set NVMe fan to 80% duty cycle for visibility
+STARTUP_NVME_DUTY=$((PWM_PERIOD * 80 / 100))
+set_nvme_fan_duty "$STARTUP_NVME_DUTY" || log_error "Failed to set NVMe fan for startup test"
+
+log_info "Startup test running... (30 seconds)"
+sleep 30
+
+log_info "Startup test complete - switching to temperature-based control"
+
+# ============================================================================
 # SENSOR DISCOVERY
 # ============================================================================
 

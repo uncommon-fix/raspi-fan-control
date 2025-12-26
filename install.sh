@@ -188,8 +188,8 @@ verify_hardware() {
     print_info "Verifying hardware compatibility..."
 
     # Check PWM chip
-    if [[ ! -d "/sys/class/pwm/pwmchip1" ]]; then
-        print_error "PWM chip not found at /sys/class/pwm/pwmchip1"
+    if [[ ! -d "/sys/class/pwm/pwmchip0" ]]; then
+        print_error "PWM chip not found at /sys/class/pwm/pwmchip0"
         echo "        Make sure PWM overlay is configured in /boot/firmware/config.txt:"
         echo "        [all]"
         echo "        dtoverlay=pwm,pin=18,func=2"

@@ -53,24 +53,54 @@ Expected output should show GPIO18 configured as PWM:
 18: a3 pd | lo // GPIO18 = PWM0_CHAN2
 ```
 
-## Installation
+## Quick Install from GitHub
 
-### Quick Install
-
-1. Clone or download this repository
-2. Navigate to the project directory
-3. Run the installation script:
+The easiest way to install is directly from GitHub using curl:
 
 ```bash
-cd /home/admin/PROJECTS/fan-controll
+curl -fsSL https://raw.githubusercontent.com/uncommon-fix/raspi-fan-control/main/install.sh | sudo bash
+```
+
+This will:
+- Clone the repository to `/opt/raspi-fan-control`
+- Verify hardware compatibility
+- Install the fan control service
+- Configure systemd
+
+### Install Specific Version
+
+To install a specific branch or tag:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/uncommon-fix/raspi-fan-control/main/install.sh | sudo BRANCH=v1.0 bash
+```
+
+### Update Existing Installation
+
+To update to the latest version, just run the install command again:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/uncommon-fix/raspi-fan-control/main/install.sh | sudo bash
+```
+
+The installer will automatically pull the latest changes from GitHub.
+
+## Alternative Installation Methods
+
+### Clone and Install
+
+If you prefer to clone the repository yourself:
+
+```bash
+git clone https://github.com/uncommon-fix/raspi-fan-control.git
+cd raspi-fan-control
 sudo ./install.sh
 ```
 
-The installer will:
-- Verify hardware compatibility
-- Install files to system locations
-- Configure systemd service
-- Create log directory
+This method is useful if you want to:
+- Review the code before installation
+- Make local modifications
+- Work offline
 
 ### Manual Installation
 
@@ -343,14 +373,19 @@ sudo find /var/log/fan-control -name "*.log" -mtime +3 -delete
 To completely remove the fan control system:
 
 ```bash
-sudo ./uninstall.sh
+sudo /opt/raspi-fan-control/uninstall.sh
 ```
+
+The uninstaller will ask if you want to remove:
+- **Log files**: Removes `/var/log/fan-control/` directory
+- **Cached repository**: Removes `/opt/raspi-fan-control/` directory
+
+**Note**: Keeping the cached repository allows faster reinstall and offline installation. If you remove it, you'll need to use curl to download from GitHub again.
 
 This will:
 - Stop and disable the service
 - Restore automatic thermal control
-- Remove all installed files
-- Optionally remove log files
+- Remove all installed files from system locations
 
 After uninstallation, your Raspberry Pi will revert to the default kernel-based fan control.
 
@@ -429,10 +464,11 @@ fan-control.sh (main daemon)
 - Library: `/usr/local/lib/fan-control/fan-control-lib.sh`
 - Systemd service: `/etc/systemd/system/fan-control.service`
 - Logs: `/var/log/fan-control/fan-control-YYYY-MM-DD.log`
+- Cached repository: `/opt/raspi-fan-control/` (when installed via curl)
 
-**Source tree:**
+**Cached repository structure:**
 ```
-fan-controll/
+/opt/raspi-fan-control/
 ├── src/
 │   ├── fan-control.conf
 │   ├── fan-control-lib.sh
@@ -441,7 +477,8 @@ fan-controll/
 │   └── fan-control.service
 ├── install.sh
 ├── uninstall.sh
-└── README.md
+├── README.md
+└── .installed          # Installation metadata
 ```
 
 ## Testing

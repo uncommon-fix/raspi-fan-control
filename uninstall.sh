@@ -8,6 +8,9 @@ set -euo pipefail
 # CONSTANTS
 # ============================================================================
 
+# Repository cache location
+REPO_CACHE="/opt/raspi-fan-control"
+
 # Installation paths
 INSTALL_BIN="/usr/local/bin"
 INSTALL_LIB="/usr/local/lib/fan-control"
@@ -206,6 +209,42 @@ remove_logs() {
 }
 
 # ============================================================================
+# REMOVE REPOSITORY CACHE
+# ============================================================================
+
+remove_repo_cache() {
+    # Ask user if they want to remove cached repository
+    echo "=========================================="
+    echo "  Repository Cache"
+    echo "=========================================="
+    echo ""
+
+    if [[ -d "$REPO_CACHE" ]]; then
+        local repo_size=$(du -sh "$REPO_CACHE" 2>/dev/null | awk '{print $1}')
+
+        print_info "Repository cache found at: $REPO_CACHE (size: $repo_size)"
+        echo ""
+        echo "Removing the cache will require re-downloading from GitHub for reinstall."
+        echo "Keeping the cache allows offline reinstall and faster updates."
+        echo ""
+
+        read -p "Do you want to remove the cached repository? [y/N] " -n 1 -r
+        echo ""
+
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -rf "$REPO_CACHE"
+            print_success "Repository cache removed"
+        else
+            print_info "Repository cache kept at $REPO_CACHE"
+        fi
+    else
+        print_info "No repository cache found"
+    fi
+
+    echo ""
+}
+
+# ============================================================================
 # POST-UNINSTALLATION
 # ============================================================================
 
@@ -219,9 +258,16 @@ print_completion() {
     echo ""
     echo "Your Raspberry Pi will now use the default kernel-based fan control."
     echo ""
-    echo "If you want to reinstall, run:"
-    echo "  sudo ./install.sh"
+    echo "To reinstall, use one of these methods:"
     echo ""
+    echo "  1. Quick install from GitHub (latest version):"
+    echo "     curl -fsSL https://raw.githubusercontent.com/uncommon-fix/raspi-fan-control/main/install.sh | sudo bash"
+    echo ""
+    if [[ -d "$REPO_CACHE" ]]; then
+        echo "  2. Use cached repository (faster, offline):"
+        echo "     sudo $REPO_CACHE/install.sh"
+        echo ""
+    fi
 }
 
 # ============================================================================
@@ -257,6 +303,9 @@ main() {
 
     # Ask about log removal
     remove_logs
+
+    # Ask about repository cache removal
+    remove_repo_cache
 
     # Print completion message
     print_completion

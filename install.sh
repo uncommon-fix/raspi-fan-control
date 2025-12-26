@@ -10,6 +10,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Repository configuration
+REPO_URL="https://github.com/uncommon-fix/raspi-fan-control.git"
+REPO_CACHE="/opt/raspi-fan-control"
+INSTALL_MARKER="$REPO_CACHE/.installed"
+BRANCH="${BRANCH:-main}"  # Allow override via env var
+
 # Installation paths
 INSTALL_BIN="/usr/local/bin"
 INSTALL_LIB="/usr/local/lib/fan-control"
@@ -44,6 +50,121 @@ print_error() {
 
 print_info() {
     echo "[INFO] $1"
+}
+
+# ============================================================================
+# REPOSITORY MANAGEMENT
+# ============================================================================
+
+# detect_execution_context: Check if running from cached repo or standalone
+# Returns: 0 if running from cache, 1 if standalone
+detect_execution_context() {
+    # Check if SCRIPT_DIR is inside REPO_CACHE
+    if [[ "$SCRIPT_DIR" == "$REPO_CACHE"* ]]; then
+        return 0  # Running from cached repo
+    else
+        return 1  # Running standalone (from curl)
+    fi
+}
+
+# clone_or_update_repo: Clone repository or update existing clone
+clone_or_update_repo() {
+    print_info "Preparing repository..."
+
+    # Check if git is installed
+    if ! command -v git &> /dev/null; then
+        print_error "git is not installed"
+        echo "Please install git: sudo apt-get install git"
+        return 1
+    fi
+
+    if [[ ! -d "$REPO_CACHE" ]]; then
+        # Clone fresh repository
+        print_info "Cloning repository from $REPO_URL..."
+        print_info "Branch: $BRANCH"
+
+        git clone "$REPO_URL" "$REPO_CACHE" 2>&1 || {
+            print_error "Failed to clone repository"
+            echo "Please check your internet connection and try again"
+            return 1
+        }
+
+        # Checkout specified branch
+        cd "$REPO_CACHE"
+        git checkout "$BRANCH" 2>&1 || {
+            print_error "Failed to checkout branch '$BRANCH'"
+            echo ""
+            echo "Available branches:"
+            git branch -r
+            return 1
+        }
+
+        print_success "Repository cloned to $REPO_CACHE"
+    else
+        # Update existing repository
+        print_info "Updating existing repository at $REPO_CACHE..."
+
+        cd "$REPO_CACHE"
+
+        # Check if repo is dirty
+        if [[ -n $(git status --porcelain) ]]; then
+            print_info "Repository has local modifications, stashing changes..."
+            git stash 2>&1
+        fi
+
+        # Fetch latest changes
+        git fetch origin 2>&1 || {
+            print_error "Failed to fetch from origin"
+            echo "Please check your internet connection and try again"
+            return 1
+        }
+
+        # Checkout and pull specified branch
+        git checkout "$BRANCH" 2>&1 || {
+            print_error "Failed to checkout branch '$BRANCH'"
+            return 1
+        }
+
+        git pull origin "$BRANCH" 2>&1 || {
+            print_error "Failed to pull from origin/$BRANCH"
+            return 1
+        }
+
+        print_success "Repository updated to latest $BRANCH"
+    fi
+
+    echo ""
+    return 0
+}
+
+# reexec_from_cache: Re-execute install script from cached repository
+reexec_from_cache() {
+    print_info "Re-executing from cached repository..."
+    echo ""
+
+    # Export environment variables for the re-executed script
+    export BRANCH
+
+    # Re-execute from cached repository
+    exec "$REPO_CACHE/install.sh"
+}
+
+# save_install_metadata: Save installation metadata to marker file
+save_install_metadata() {
+    if [[ -d "$REPO_CACHE/.git" ]]; then
+        local git_commit=$(cd "$REPO_CACHE" && git rev-parse HEAD 2>/dev/null || echo "unknown")
+        local git_branch=$(cd "$REPO_CACHE" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+        cat > "$INSTALL_MARKER" << EOF
+INSTALLED_AT=$timestamp
+GIT_COMMIT=$git_commit
+GIT_BRANCH=$git_branch
+REPO_URL=$REPO_URL
+EOF
+
+        print_info "Installation metadata saved to $INSTALL_MARKER"
+    fi
 }
 
 # ============================================================================
@@ -283,7 +404,10 @@ print_next_steps() {
     echo "  Hysteresis: 3°C"
     echo ""
     echo "To uninstall, run:"
-    echo "  sudo $SCRIPT_DIR/uninstall.sh"
+    echo "  sudo $REPO_CACHE/uninstall.sh"
+    echo ""
+    echo "To update to latest version:"
+    echo "  curl -fsSL https://raw.githubusercontent.com/uncommon-fix/raspi-fan-control/main/install.sh | sudo bash"
     echo ""
 }
 
@@ -293,6 +417,29 @@ print_next_steps() {
 
 main() {
     print_header
+
+    # Detect execution context
+    if detect_execution_context; then
+        # Running from cached repo - proceed with installation
+        print_info "Running from cached repository: $REPO_CACHE"
+        echo ""
+    else
+        # Running standalone (from curl) - need to clone and re-exec
+        print_info "Standalone execution detected"
+        print_info "Repository will be cached at: $REPO_CACHE"
+        print_info "Branch: $BRANCH"
+        echo ""
+
+        # Clone or update repository
+        clone_or_update_repo || exit 1
+
+        # Re-execute from cached repository
+        reexec_from_cache
+        # Script execution stops here - we never reach this point
+    fi
+
+    # Original installation logic continues here
+    # (only reached when running from cached repo)
 
     # Verify hardware
     verify_hardware || exit 1
@@ -305,6 +452,9 @@ main() {
 
     # Configure systemd
     configure_systemd || exit 1
+
+    # Save installation metadata
+    save_install_metadata
 
     # Print next steps
     print_next_steps

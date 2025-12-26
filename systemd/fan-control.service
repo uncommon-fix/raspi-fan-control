@@ -1,0 +1,38 @@
+[Unit]
+Description=Raspberry Pi 5 Fan Control Service
+Documentation=file:///usr/share/doc/fan-control/README.md
+After=local-fs.target
+Before=shutdown.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/fan-control.sh
+
+# Restart policy - restart on failures but not on clean exit
+Restart=on-failure
+RestartSec=10s
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Security settings
+# PrivateTmp provides isolated /tmp directory
+PrivateTmp=yes
+# NoNewPrivileges prevents privilege escalation
+NoNewPrivileges=true
+# ProtectSystem prevents modification of /usr and /boot
+# Using 'strict' and explicitly allowing write to needed paths
+ProtectSystem=strict
+# Explicitly allow writes to log directory and sysfs hardware interfaces
+ReadWritePaths=/var/log/fan-control /sys/class/pwm /sys/class/thermal
+
+# Resource limits to prevent runaway processes
+CPUQuota=5%
+MemoryLimit=50M
+
+# Logging configuration
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fan-control
+
+[Install]
+WantedBy=multi-user.target

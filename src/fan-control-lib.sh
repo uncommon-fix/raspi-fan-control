@@ -472,10 +472,16 @@ check_thermal_runaway() {
 cleanup_handler() {
     log_info "Fan control service shutting down..."
 
-    # Set fans to safe default speeds (not off, to prevent heat buildup)
-    log_info "Setting fans to safe default speeds..."
+    # Set CPU fan to safe default speed
+    log_info "Setting CPU fan to safe default speed..."
     set_cpu_fan_state "$SAFE_CPU_STATE" 2>/dev/null
-    set_nvme_fan_duty "$SAFE_NVME_DUTY" 2>/dev/null
+
+    # Turn off NVMe fan before PWM disable/unexport to prevent spinning on shutdown
+    log_info "Turning off NVMe fan..."
+    set_nvme_fan_duty 0 2>/dev/null
+
+    # Brief delay to ensure PWM state change takes effect
+    sleep 0.2
 
     # Re-enable automatic thermal control
     log_info "Re-enabling automatic thermal control..."

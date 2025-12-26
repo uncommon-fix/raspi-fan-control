@@ -230,8 +230,8 @@ while true; do
     # Update NVMe fan if duty cycle changed
     if [[ $new_nvme_duty != $CURRENT_NVME_DUTY ]]; then
         if set_nvme_fan_duty "$new_nvme_duty"; then
-            local old_percent=$((CURRENT_NVME_DUTY * 100 / PWM_PERIOD))
-            local new_percent=$((new_nvme_duty * 100 / PWM_PERIOD))
+            old_percent=$((CURRENT_NVME_DUTY * 100 / PWM_PERIOD))
+            new_percent=$((new_nvme_duty * 100 / PWM_PERIOD))
             log_info "NVMe fan duty changed: $CURRENT_NVME_DUTY (${old_percent}%) -> $new_nvme_duty (${new_percent}%) (temp: ${nvme_temp}C)"
             CURRENT_NVME_DUTY=$new_nvme_duty
         else
@@ -244,7 +244,7 @@ while true; do
     # ========================================================================
 
     # Determine status message
-    local status="OK"
+    status="OK"
     if (( EMERGENCY_MODE == 1 )); then
         status="EMERGENCY"
     elif (( CPU_FAIL_COUNT > 0 )) || (( NVME_FAIL_COUNT > 0 )); then

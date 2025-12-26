@@ -8,7 +8,8 @@ set -euo pipefail
 # CONSTANTS
 # ============================================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Handle BASH_SOURCE when running from stdin (curl | bash)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$PWD}")" 2>/dev/null && pwd || pwd)"
 
 # Repository configuration
 REPO_URL="https://github.com/uncommon-fix/raspi-fan-control.git"

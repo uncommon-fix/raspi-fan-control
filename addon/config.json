@@ -1,0 +1,59 @@
+{
+  "name": "Raspberry Pi 5 Fan Control",
+  "version": "1.0.0",
+  "slug": "raspi5-fan-control",
+  "description": "Temperature-based fan control with hysteresis for Raspberry Pi 5. Controls both CPU and NVMe fans with intelligent thermal management and multiple safety mechanisms.",
+  "arch": ["aarch64"],
+  "startup": "services",
+  "boot": "auto",
+  "init": false,
+  "privileged": ["SYS_RAWIO"],
+  "apparmor": false,
+  "url": "https://github.com/uncommon-fix/raspi-fan-control",
+  "image": "ghcr.io/{arch}-addon-raspi5-fan-control",
+  "options": {
+    "cpu_temp_thresholds": {
+      "state1": 50,
+      "state2": 60,
+      "state3": 70,
+      "state4": 80
+    },
+    "nvme_temp_thresholds": {
+      "level1": 50,
+      "level2": 60,
+      "level3": 70,
+      "level4": 80
+    },
+    "hysteresis": 3,
+    "loop_interval": 5,
+    "debug_mode": false,
+    "startup_test_enabled": true
+  },
+  "schema": {
+    "cpu_temp_thresholds": {
+      "state1": "int(30,70)",
+      "state2": "int(40,80)",
+      "state3": "int(50,90)",
+      "state4": "int(60,100)"
+    },
+    "nvme_temp_thresholds": {
+      "level1": "int(30,70)",
+      "level2": "int(40,80)",
+      "level3": "int(50,90)",
+      "level4": "int(60,100)"
+    },
+    "hysteresis": "int(1,10)",
+    "loop_interval": "int(1,60)",
+    "debug_mode": "bool",
+    "startup_test_enabled": "bool"
+  },
+  "healthcheck": {
+    "test": ["CMD", "/usr/local/bin/health-check.sh"],
+    "interval": "30s",
+    "timeout": "10s",
+    "retries": 3,
+    "start_period": "60s"
+  },
+  "cpu_quota": 5,
+  "memory_max": "50M"
+}

@@ -8,6 +8,8 @@
   "boot": "auto",
   "init": false,
   "gpio": true,
+  "devicetree": true,
+  "devices": ["/dev/mem:/dev/mem:rw", "/dev/gpiochip0:/dev/gpiochip0:rw"],
   "full_access": true,
   "privileged": ["SYS_RAWIO"],
   "apparmor": false,

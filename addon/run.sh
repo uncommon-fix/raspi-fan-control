@@ -44,6 +44,86 @@ echo "✓ Thermal zone found"
 echo "✓ CPU cooling device found"
 echo ""
 
+# ============================================================
+# DIAGNOSTIC: Test hardware write access
+# ============================================================
+echo "========================================="
+echo "DIAGNOSTIC: Testing Hardware Access"
+echo "========================================="
+echo ""
+
+echo "--- Checking /sys mount status ---"
+mount | grep "/sys " || echo "Could not find /sys mount info"
+echo ""
+
+echo "--- Testing /sys/class/pwm write access ---"
+if [ -w /sys/class/pwm/pwmchip0/export ]; then
+    echo "✓ PWM export is WRITABLE"
+else
+    echo "✗ PWM export is NOT writable (read-only or no permission)"
+    ls -la /sys/class/pwm/pwmchip0/export 2>&1 || echo "  File does not exist"
+fi
+echo ""
+
+echo "--- Testing /sys/class/thermal write access ---"
+if [ -w /sys/class/thermal/thermal_zone0/mode ]; then
+    echo "✓ Thermal zone mode is WRITABLE"
+else
+    echo "✗ Thermal zone mode is NOT writable (read-only or no permission)"
+    ls -la /sys/class/thermal/thermal_zone0/mode 2>&1 || echo "  File does not exist"
+fi
+
+if [ -w /sys/class/thermal/cooling_device0/cur_state ]; then
+    echo "✓ CPU cooling device is WRITABLE"
+else
+    echo "✗ CPU cooling device is NOT writable (read-only or no permission)"
+    ls -la /sys/class/thermal/cooling_device0/cur_state 2>&1 || echo "  File does not exist"
+fi
+echo ""
+
+echo "--- Checking for alternative hardware access methods ---"
+if [ -e /dev/mem ]; then
+    echo "✓ /dev/mem exists"
+    ls -la /dev/mem
+    if [ -w /dev/mem ]; then
+        echo "  → /dev/mem is WRITABLE"
+    else
+        echo "  → /dev/mem is NOT writable"
+    fi
+else
+    echo "✗ /dev/mem does not exist"
+fi
+
+if ls /dev/gpiochip* 2>/dev/null; then
+    echo "✓ GPIO chip devices found:"
+    ls -la /dev/gpiochip* 2>/dev/null
+else
+    echo "✗ No /dev/gpiochip* devices found"
+fi
+
+if [ -e /dev/gpiomem ]; then
+    echo "✓ /dev/gpiomem exists"
+    ls -la /dev/gpiomem
+else
+    echo "✗ /dev/gpiomem does not exist"
+fi
+echo ""
+
+echo "--- Current user and capabilities ---"
+echo "User: $(whoami) (UID: $(id -u), GID: $(id -g))"
+echo "Groups: $(groups)"
+if command -v capsh >/dev/null 2>&1; then
+    echo "Capabilities: $(capsh --print | grep Current || echo 'capsh available but no caps info')"
+else
+    echo "Capabilities: capsh not available, cannot check"
+fi
+echo ""
+
+echo "========================================="
+echo "END DIAGNOSTIC"
+echo "========================================="
+echo ""
+
 # Parse HAOS options using jq
 echo "Loading configuration..."
 

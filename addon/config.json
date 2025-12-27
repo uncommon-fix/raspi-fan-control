@@ -10,7 +10,6 @@
   "privileged": ["SYS_RAWIO"],
   "apparmor": false,
   "url": "https://github.com/uncommon-fix/raspi-fan-control",
-  "image": "ghcr.io/{arch}-addon-raspi5-fan-control",
   "options": {
     "cpu_temp_thresholds": {
       "state1": 50,
